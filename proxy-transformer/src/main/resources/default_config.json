@@ -1,0 +1,18 @@
+[
+  {
+    "inputMethod": "GET",
+    "inputPathPattern" : "test",
+    "destinationMethod" :"POST",
+    "destinationPath":"http://mockbin.org/bin/632b8d61-b202-499b-ab65-e636caba275b",
+    "headersToSend" : {
+        "testHeader" : "test"
+    },
+    "bodyToSend" : {
+      "test" : "concat('a','b')",
+      "nested" : {
+        "nest" : "toUpper('hello')",
+        "nestedList" : "split('world')"
+      }
+    }
+  }
+]
