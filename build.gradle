@@ -1,0 +1,42 @@
+buildscript {
+    ext {
+        nebulaReleaseVersion = "4.0.1"
+        awsLambdaCoreVersion = "1.1.0"
+        awsLambdaEventsVersion = "1.2.0"
+        awsLambdaLog4jVersion = "1.0.0"
+        rxJavaVersion = "1.1.5"
+        junitVersion = "4.12"
+        mockitoVersion = "1.10.19"
+        assertJVersion = "3.4.1"
+        jetbrainsAnnotationsVersion = "13.0"
+        awsPluginVersion = "0.28"
+        slf4jVersion = "1.7.21"
+        log4jVersion = "1.2.17"
+        jacksonVersion = "2.7.4"
+        httpClientVersion = "4.5.3"
+        jodaTimeVersion = "2.9.3"
+        unirestJavaVersion = "1.4.9"
+        libphonenumberVersion = "8.8.4"
+        jsonPathAssertVersion = "2.4.0"
+
+    }
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+}
+
+apply plugin: "java"
+apply plugin: "idea"
+
+group "com.github.frankfarrell"
+
+repositories {
+    mavenCentral()
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = "2.13"
+}
+
+evaluationDependsOnChildren();
