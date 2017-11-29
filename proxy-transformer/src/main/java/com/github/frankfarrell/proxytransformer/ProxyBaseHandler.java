@@ -5,6 +5,7 @@ import com.amazonaws.serverless.proxy.internal.model.AwsProxyResponse;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +16,11 @@ import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateDeserializer;
 import com.github.frankfarrell.proxytransformer.config.HttpMethod;
 import com.github.frankfarrell.proxytransformer.config.MethodPathTuple;
 import com.github.frankfarrell.proxytransformer.config.ProxyConfiguration;
+import com.github.frankfarrell.proxytransformer.config.UserPassTuple;
 import com.github.frankfarrell.proxytransformer.context.request.*;
+import com.github.frankfarrell.proxytransformer.context.response.ResponseDocumentContextHolder;
+import com.github.frankfarrell.proxytransformer.context.response.ResponseHeadersContextHolder;
+import com.github.frankfarrell.proxytransformer.context.response.ResponseStatusCodeContextHolder;
 import com.github.frankfarrell.proxytransformer.functions.DefaultBiFunctions;
 import com.github.frankfarrell.proxytransformer.functions.DefaultFunctions;
 import com.github.frankfarrell.proxytransformer.functions.DefaultVariables;
@@ -23,6 +28,12 @@ import com.github.frankfarrell.proxytransformer.parser.ExpressionParser;
 import com.github.frankfarrell.proxytransformer.transformer.RequestTransformer;
 import com.github.frankfarrell.proxytransformer.transformer.ResponseTransformer;
 import com.jayway.jsonpath.Configuration;
+import com.mashape.unirest.http.HttpResponse;
+import com.mashape.unirest.http.Unirest;
+import com.mashape.unirest.http.exceptions.UnirestException;
+import com.mashape.unirest.request.GetRequest;
+import com.mashape.unirest.request.HttpRequest;
+import com.mashape.unirest.request.HttpRequestWithBody;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +43,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -39,10 +51,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
+
 /*
 Extend this class in your lambda
  */
-public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
+public class ProxyBaseHandler implements RequestStreamHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ProxyBaseHandler.class);
 
@@ -56,6 +70,14 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
     /*
     Default configuration, using built in functions and default config file.
      */
+    protected ProxyBaseHandler(final ObjectMapper objectMapper) throws IOException {
+        this(DefaultVariables.getDefaultSupplierFunctions(),
+                DefaultFunctions.getDefaultFunctions(),
+                DefaultBiFunctions.getDefaultBiFunctions(),
+                objectMapper,
+                "src/main/resources/default_config.json");
+    }
+
     protected ProxyBaseHandler() throws IOException {
         this(DefaultVariables.getDefaultSupplierFunctions(),
                 DefaultFunctions.getDefaultFunctions(),
@@ -126,7 +148,7 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
 
         final AwsProxyRequest request = this.objectMapper.readValue(input, AwsProxyRequest.class);
 
-        final HttpMethod currentHttpMethod = HttpMethod.valueOf(request.getHttpMethod());
+        final HttpMethod currentHttpMethod = HttpMethod.forValue(request.getHttpMethod());
         final String currentPath =request.getPath();
 
         final ProxyConfiguration salientProxyConfiguration = this.proxyConfiguration
@@ -142,12 +164,19 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
 
         RequestPathContextHolder.setContext(new RequestPath(currentPath, matchedGroups));
         RequestHeadersContextHolder.setContext(request.getHeaders());
-        RequestDocumentContextHolder.setContext(Configuration.defaultConfiguration().jsonProvider().parse(request.getBody()));
+        if(request.getBody() != null){
+            RequestDocumentContextHolder.setContext(Configuration.defaultConfiguration().jsonProvider().parse(request.getBody()));
+        }
         RequestMethodContextHolder.setContext(request.getHttpMethod());
         RequestQueryParamsContextHolder.setContext(request.getQueryStringParameters());
 
 
-        doRequest(salientProxyConfiguration);
+        try {
+            doRequest(salientProxyConfiguration);
+        } catch (UnirestException e) {
+            //TODO Improve this
+            log.error("Unirest error", e);
+        }
 
         //At the end ->
         final AwsProxyResponse resp = new AwsProxyResponse();
@@ -158,17 +187,73 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
         output.close();
     }
 
-    private void doRequest(final ProxyConfiguration salientProxyConfiguration) {
+    private void doRequest(final ProxyConfiguration salientProxyConfiguration) throws UnirestException, JsonProcessingException {
         final HttpMethod methodToCall = salientProxyConfiguration.destinationMethod;
         final String pathToCall = (String)expressionParser.parseAndBuildFunction(salientProxyConfiguration.destinationPath).apply(null);
-        final Map<String, String> headers = requestTransformer.transformRequestHeaders(salientProxyConfiguration.headersToSend);
 
-        //TODO Unirest based on the above
+        final HttpResponse<String> response;
+        switch(methodToCall){
+            case GET:
+                response = doRequestWithoutBody(Unirest.get(pathToCall), salientProxyConfiguration);
+                break;
+            case POST:
+                response = doRequestWithBody(Unirest.post(pathToCall), salientProxyConfiguration);
+                break;
+            case DELETE:
+                response = doRequestWithBody(Unirest.delete(pathToCall), salientProxyConfiguration);
+                break;
+            case PUT:
+                response = doRequestWithBody(Unirest.put(pathToCall), salientProxyConfiguration);
+                break;
+            case PATCH:
+                response = doRequestWithBody(Unirest.patch(pathToCall), salientProxyConfiguration);
+                break;
+            case OPTIONS:
+                response = doRequestWithBody(Unirest.options(pathToCall), salientProxyConfiguration);
+                break;
+            case HEAD:
+                response = doRequestWithoutBody(Unirest.head(pathToCall), salientProxyConfiguration);
+                break;
+            default:
+                throw new RuntimeException("This is impossible");
+        }
 
-        //Set all the context holders with the response
-
+        ResponseHeadersContextHolder.setContext(response.getHeaders().entrySet()
+                .stream().collect(Collectors.toMap(Map.Entry::getKey,
+                        e -> e.getValue().stream().collect(joining(";")))));
+        ResponseDocumentContextHolder.setContext(response.getBody());
+        ResponseStatusCodeContextHolder.setContext(response.getStatus());
     }
 
+    private HttpResponse<String> doRequestWithBody(final HttpRequestWithBody request, final ProxyConfiguration salientProxyConfiguration) throws UnirestException, JsonProcessingException {
+        final Map<String, String> headers = requestTransformer.transformRequestHeaders(salientProxyConfiguration.headersToSend);
+
+        //Optional request properties
+        final Optional<String> requestBody = requestTransformer.transformRequestBody(salientProxyConfiguration.bodyToSend);
+        final Map<String, String> queryParams = requestTransformer.transformRequestQueryParams(salientProxyConfiguration.queryParamsToSend);
+        final Optional<UserPassTuple> requestUserPass = requestTransformer.transformRequestUsernamePassword(salientProxyConfiguration.requestUsername, salientProxyConfiguration.requestPassword);
+
+        request.headers(headers);
+        requestBody.ifPresent(request::body);
+        queryParams.forEach(request::queryString);
+        requestUserPass.ifPresent(userPass -> request.basicAuth(userPass.username, userPass.password));
+
+        return request.asString();
+    }
+
+    private HttpResponse<String> doRequestWithoutBody(final HttpRequest request, final ProxyConfiguration salientProxyConfiguration) throws UnirestException {
+        final Map<String, String> headers = requestTransformer.transformRequestHeaders(salientProxyConfiguration.headersToSend);
+
+        //Optional request properties
+        final Map<String, String> queryParams = requestTransformer.transformRequestQueryParams(salientProxyConfiguration.queryParamsToSend);
+        final Optional<UserPassTuple> requestUserPass = requestTransformer.transformRequestUsernamePassword(salientProxyConfiguration.requestUsername, salientProxyConfiguration.requestPassword);
+
+        request.headers(headers);
+        queryParams.forEach(request::queryString);
+        requestUserPass.ifPresent(userPass -> request.basicAuth(userPass.username, userPass.password));
+
+        return request.asString();
+    }
 
     //TODO Is there a nice way to do this?
     protected Map<String, String> getMatchedPathGroups(final String currentPath, final String inputPathPattern) {
@@ -176,7 +261,8 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
 
         matcher.matches();
         final Map<String, String> matchedGroups = new HashMap<>();
-        for(Integer i=0; i<matcher.groupCount(); i++){
+        //groupCount does not include the full match
+        for(Integer i=0; i<matcher.groupCount()+1; i++){
             matchedGroups.put(i.toString(), matcher.group(i));
         }
         return matchedGroups;
