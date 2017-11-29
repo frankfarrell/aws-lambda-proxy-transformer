@@ -2,16 +2,27 @@ package com.github.frankfarrell.proxytransformer.config;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 
-/**
- * Created by ffarrell on 24/11/2017.
- */
+import java.util.Arrays;
+
 public enum HttpMethod {
 
-    GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD;
+    GET("GET"), 
+    POST("POST"), 
+    DELETE("DELETE"), 
+    PUT("PUT"), 
+    PATCH("PATCH"), 
+    OPTIONS("OPTIONS"), 
+    HEAD("HEAD");
+
+    public final String value;
+
+    HttpMethod(String value) {
+        this.value = value;
+    }
+
 
     @JsonCreator
     public static HttpMethod forValue(String v) {
-        return HttpMethod.valueOf(v);
-    }
+        return Arrays.stream(HttpMethod.values()).filter(val->val.value.equalsIgnoreCase(v)).findFirst().orElseThrow(()-> new RuntimeException("No value"));}
 
 }
