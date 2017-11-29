@@ -20,6 +20,7 @@ import com.github.frankfarrell.proxytransformer.functions.DefaultBiFunctions;
 import com.github.frankfarrell.proxytransformer.functions.DefaultFunctions;
 import com.github.frankfarrell.proxytransformer.functions.DefaultVariables;
 import com.github.frankfarrell.proxytransformer.parser.ExpressionParser;
+import com.github.frankfarrell.proxytransformer.transformer.RequestTransformer;
 import com.github.frankfarrell.proxytransformer.transformer.ResponseTransformer;
 import com.jayway.jsonpath.Configuration;
 import org.slf4j.Logger;
@@ -51,6 +52,7 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
     private final ExpressionParser expressionParser;
 
     private final ResponseTransformer responseTransformer;
+    private final RequestTransformer requestTransformer;
     /*
     Default configuration, using built in functions and default config file.
      */
@@ -102,6 +104,7 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
                                 new MethodPathTuple(proxyConifg.inputMethod, proxyConifg.inputPathPattern), Function.identity()));
 
         this.responseTransformer = new ResponseTransformer(objectMapper, expressionParser);
+        this.requestTransformer = new RequestTransformer(objectMapper, expressionParser);
     }
 
     public static ObjectMapper getDefaultObjectMapper() {
@@ -144,10 +147,7 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
         RequestQueryParamsContextHolder.setContext(request.getQueryStringParameters());
 
 
-
-
-
-
+        doRequest(salientProxyConfiguration);
 
         //At the end ->
         final AwsProxyResponse resp = new AwsProxyResponse();
@@ -158,6 +158,16 @@ public abstract class ProxyBaseHandler<O> implements RequestStreamHandler {
         output.close();
     }
 
+    private void doRequest(final ProxyConfiguration salientProxyConfiguration) {
+        final HttpMethod methodToCall = salientProxyConfiguration.destinationMethod;
+        final String pathToCall = (String)expressionParser.parseAndBuildFunction(salientProxyConfiguration.destinationPath).apply(null);
+        final Map<String, String> headers = requestTransformer.transformRequestHeaders(salientProxyConfiguration.headersToSend);
+
+        //TODO Unirest based on the above
+
+        //Set all the context holders with the response
+
+    }
 
 
     //TODO Is there a nice way to do this?
