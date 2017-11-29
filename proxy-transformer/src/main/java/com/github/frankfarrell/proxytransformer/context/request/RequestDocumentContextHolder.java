@@ -1,14 +1,16 @@
 package com.github.frankfarrell.proxytransformer.context.request;
 
+import java.util.Optional;
+
 public class RequestDocumentContextHolder {
 
-    private static final ThreadLocal<Object> contextHolder = new InheritableThreadLocal<>();
+    private static final ThreadLocal<Optional<Object>> contextHolder = new InheritableThreadLocal<>();
 
     public static void setContext(Object document) {
-        contextHolder.set(document);
+        contextHolder.set(Optional.ofNullable(document));
     }
 
-    public static Object getContext() {
+    public static Optional<Object> getContext() {
         return contextHolder.get();
     }
 

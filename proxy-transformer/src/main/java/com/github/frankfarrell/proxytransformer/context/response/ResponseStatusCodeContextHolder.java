@@ -2,13 +2,13 @@ package com.github.frankfarrell.proxytransformer.context.response;
 
 public class ResponseStatusCodeContextHolder {
 
-    private static final ThreadLocal<String> contextHolder = new InheritableThreadLocal<>();
+    private static final ThreadLocal<Integer> contextHolder = new InheritableThreadLocal<>();
 
-    public static void setContext(String status) {
+    public static void setContext(Integer status) {
         contextHolder.set(status);
     }
 
-    public static String getContext() {
+    public static Integer getContext() {
         return contextHolder.get();
     }
 

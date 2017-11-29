@@ -51,7 +51,7 @@ public class ResponseTransformerTest {
     @Test
     public void itUsesTheResponseStatusCodeIfInputIsEmpty(){
 
-        ResponseStatusCodeContextHolder.setContext("500");
+        ResponseStatusCodeContextHolder.setContext(500);
         Optional<String> input = Optional.empty();
 
         assertThat(responseTransformerUnderTest.transformResponseStatusCode(input)).isEqualTo(500);
