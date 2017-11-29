@@ -20,8 +20,8 @@ public abstract class BaseTransformer {
     }
 
 
-    protected Optional<Map<String, String>> mapHeaders(Optional<Map<String, String>> responseHeadersOptional) {
-        return responseHeadersOptional.map(stringStringMap -> stringStringMap
+    protected Optional<Map<String, String>> mapKeyValue(Optional<Map<String, String>> keyValue) {
+        return keyValue.map(stringStringMap -> stringStringMap
                 .entrySet()
                 .stream()
                 .collect(Collectors.toMap(
@@ -42,7 +42,7 @@ public abstract class BaseTransformer {
                         Map.Entry::getKey,
                         entry -> {
                             if(entry.getValue() instanceof String){
-                                return (String) expressionParser.parseAndBuildFunction((String)entry.getValue()).apply(null);
+                                return expressionParser.parseAndBuildFunction((String)entry.getValue()).apply(null);
                             }
                             //TODO This needs rework
                             else if(entry.getValue() instanceof List){

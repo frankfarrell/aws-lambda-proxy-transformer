@@ -2,8 +2,6 @@ package com.github.frankfarrell.proxytransformer.transformer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.frankfarrell.proxytransformer.context.request.RequestDocumentContextHolder;
-import com.github.frankfarrell.proxytransformer.context.request.RequestHeadersContextHolder;
 import com.github.frankfarrell.proxytransformer.context.response.ResponseDocumentContextHolder;
 import com.github.frankfarrell.proxytransformer.context.response.ResponseHeadersContextHolder;
 import com.github.frankfarrell.proxytransformer.context.response.ResponseStatusCodeContextHolder;
@@ -23,11 +21,11 @@ public class ResponseTransformer extends BaseTransformer{
 
         return responseStatusCode.map(s ->
                         Integer.valueOf((String) expressionParser.parseAndBuildFunction(s).apply(null)))
-                .orElseGet(() -> Integer.valueOf(ResponseStatusCodeContextHolder.getContext()));
+                .orElseGet(ResponseStatusCodeContextHolder::getContext);
     }
 
     public Map<String, String> transformResponseHeaders(final Optional<Map<String, String>> responseHeadersOptional) {
-        return mapHeaders(responseHeadersOptional).orElseGet(ResponseHeadersContextHolder::getContext);
+        return mapKeyValue(responseHeadersOptional).orElseGet(ResponseHeadersContextHolder::getContext);
     }
 
     public String transformResponseBody(final Optional<Map<String, Object>> responseBody) throws JsonProcessingException {

@@ -24,6 +24,10 @@ public class ProxyConfiguration {
     //Body to send
     public final Optional<Map<String, Object>> bodyToSend; //Can use functions to match input json
 
+    //TODO These can be in plaintext or can use a function to query them from somewhere else
+    //Functions include querying from env varible, or you could write our own custom function to query from s3 or somewhere
+    public final Optional<String> requestUsername;
+    public final Optional<String> requestPassword;
 
     //RESPONSE
     //Headers returned to client
@@ -43,6 +47,8 @@ public class ProxyConfiguration {
                               @JsonProperty("headersToSend") final Map<String, String> headersToSend,
                               @JsonProperty("queryParamsToSend") final Map<String, String> queryParamsToSend,
                               @JsonProperty("bodyToSend") final Map<String, Object> bodyToSend,
+                              @JsonProperty("requestUsername") final String requestUsername,
+                              @JsonProperty("requestPassword") final String requestPassword,
                               @JsonProperty("responseHeaders")final Map<String, String> responseHeaders,
                               @JsonProperty("responseStatusCode") final String responseStatusCode,
                               @JsonProperty("responseBody") final Map<String, Object> responseBody) {
@@ -53,6 +59,11 @@ public class ProxyConfiguration {
         this.headersToSend = Optional.ofNullable(headersToSend);
         this.queryParamsToSend = Optional.ofNullable(queryParamsToSend);
         this.bodyToSend = Optional.ofNullable(bodyToSend);
+
+        //TODO Check on the following, if one is present so must the other,
+        //Log a warning and continue?
+        this.requestUsername = Optional.ofNullable(requestUsername);
+        this.requestPassword = Optional.ofNullable(requestPassword);
         this.responseHeaders = Optional.ofNullable(responseHeaders);
         this.responseStatusCode = Optional.ofNullable(responseStatusCode);
         this.responseBody = Optional.ofNullable(responseBody);
