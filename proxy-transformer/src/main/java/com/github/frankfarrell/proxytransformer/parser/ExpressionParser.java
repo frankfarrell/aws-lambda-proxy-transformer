@@ -122,9 +122,9 @@ public class ExpressionParser {
     }
 
     //As it is in the input
-    protected Object handleValue(String x) {
+    protected Object handleValue(final String fullValue) {
 
-        final String trimmedValue = x.trim();
+        final String trimmedValue = fullValue.trim();
 
         if (trimmedValue.trim().startsWith("'")){
             return trimmedValue.replaceAll("'", "");
@@ -135,12 +135,13 @@ public class ExpressionParser {
         else if(trimmedValue.equalsIgnoreCase("true") || trimmedValue.equalsIgnoreCase("false")){
             return Boolean.valueOf(trimmedValue);
         }
-        //Yes we don't handle nested lists yet
+        //Yes we don't handle nested lists yet -> TODO Add note to limitations in readme
         else if(trimmedValue.matches("^\\[.*\\]$")){
             return Arrays.stream(trimmedValue.substring(1, trimmedValue.length() - 2).split(",")).map(this::handleValue).collect(Collectors.toList());
         }
         else{
-            throw new RuntimeException("");// Is this a list?
+            //Its just a plain old string without quotes
+            return trimmedValue;
         }
     }
 }

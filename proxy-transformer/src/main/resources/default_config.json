@@ -5,7 +5,7 @@
     "destinationMethod" :"POST",
     "destinationPath":"concat('http://mockbin.org/bin/632b8d61-b202-499b-ab65-e636caba275b/', requestPathGroup('1'))",
     "headersToSend" : {
-        "testHeader" : "'test'"
+        "testHeader" : "test"
     },
     "bodyToSend" : {
       "test" : "concat('a','b')",
