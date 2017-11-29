@@ -49,5 +49,5 @@ dependencies {
     testCompile("junit:junit:${rootProject.junitVersion}")
     testCompile("org.assertj:assertj-core:${rootProject.assertJVersion}")
     testCompile("org.mockito:mockito-core:${rootProject.mockitoVersion}")
-    testCompile("com.jayway.jsonpath:json-path-assert:${rootProject.jsonPathAssertVersion}")
+    testCompile("com.revinate:assertj-json:${rootProject.jsonPathAssertVersion}")
 }
