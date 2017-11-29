@@ -98,22 +98,22 @@ public class ExpressionParser {
 
         //Return the parsed value
         if(parsedArguments.functionName.equalsIgnoreCase(IDENTITY_FUNCTION)){
-            return (z) -> handleValue(parsedArguments.parameters.get(0).functionName);
+            return (z) -> handleValue(parsedArguments.parameters.get(0).functionName.trim());
         }
         //Eg accessing variables
         else if(parsedArguments.parameters.size() == 0){
-            return (z) -> supplierFunctions.get(parsedArguments.functionName).get();
+            return (z) -> supplierFunctions.get(parsedArguments.functionName.trim()).get();
         }
         else if(parsedArguments.parameters.size() ==1){
 
             return (z) -> buildFunction(parsedArguments.parameters.get(0))
-                    .andThen(functions.get(parsedArguments.functionName)).apply(null);
+                    .andThen(functions.get(parsedArguments.functionName.trim())).apply(null);
         }
         else if(parsedArguments.parameters.size() ==2){
             final Function<Void, Object> left = buildFunction(parsedArguments.parameters.get(0));
             final Function<Void, Object> right = buildFunction(parsedArguments.parameters.get(1));
 
-            return (z) -> biFunctions.get(parsedArguments.functionName)
+            return (z) -> biFunctions.get(parsedArguments.functionName.trim())
                     .apply(left.apply(null), right.apply(null));
         }
         else{
