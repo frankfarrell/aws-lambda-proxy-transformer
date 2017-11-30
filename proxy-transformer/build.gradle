@@ -1,0 +1,53 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+}
+
+apply plugin: "java"
+apply plugin: "maven"
+apply plugin: "jacoco"
+
+jacoco {
+    toolVersion = "0.7.5.201505241946"
+}
+jar {
+    baseName = "proxy-transformer"
+    archivesBaseName = "proxy-transformer"
+    manifest {
+        attributes("Implementation-Title": "Library for proxy transformation in AWS Lambda.")
+    }
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = "2.13"
+}
+
+group "com.github.ffrankfarrell"
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile("com.amazonaws:aws-lambda-java-core:${rootProject.awsLambdaCoreVersion}") {
+	     exclude group: 'com.amazonaws'
+	}
+    compile("com.fasterxml.jackson.core:jackson-databind:${rootProject.jacksonVersion}")
+    compile("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.jacksonVersion}")
+    compile("com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${rootProject.jacksonVersion}")
+
+    compile("org.slf4j:slf4j-api:${rootProject.slf4jVersion}")
+    compile("org.slf4j:slf4j-log4j12:${rootProject.slf4jVersion}")
+    compile("log4j:log4j:${rootProject.log4jVersion}")
+    compile("com.jayway.jsonpath:json-path:2.3.0")
+    compile("com.amazonaws.serverless:aws-serverless-java-container-core:0.5")
+    compile("com.mashape.unirest:unirest-java:${rootProject.unirestJavaVersion}")
+
+    testCompile("junit:junit:${rootProject.junitVersion}")
+    testCompile("org.assertj:assertj-core:${rootProject.assertJVersion}")
+    testCompile("org.mockito:mockito-core:${rootProject.mockitoVersion}")
+    testCompile("com.revinate:assertj-json:${rootProject.jsonPathAssertVersion}")
+}
