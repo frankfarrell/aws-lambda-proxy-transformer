@@ -40,10 +40,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -78,72 +75,64 @@ public class ProxyBaseHandler{
 
     private final ResponseTransformer responseTransformer;
     private final RequestTransformer requestTransformer;
+    private final Unirest unirest;
 
     public static ObjectMapper getDefaultObjectMapper(){
         return DEFAULT_OBJECT_MAPPER;
     }
 
     /*
-    Default configuration, using built in functions and default config file.
-     */
-    protected ProxyBaseHandler(final ObjectMapper objectMapper) throws IOException {
-        this(DefaultVariables.getDefaultSupplierFunctions(),
-                DefaultFunctions.getDefaultFunctions(),
-                DefaultBiFunctions.getDefaultBiFunctions(),
-                objectMapper,
-                "src/main/resources/default_config.json");
-    }
-
-    protected ProxyBaseHandler() throws IOException {
-        this(DefaultVariables.getDefaultSupplierFunctions(),
-                DefaultFunctions.getDefaultFunctions(),
-                DefaultBiFunctions.getDefaultBiFunctions(),
-                DEFAULT_OBJECT_MAPPER,
-                "src/main/resources/default_config.json");
-    }
-
-    /*
     Probably the configuration you want to use to start with: default functions and you can specify the configuration file
      */
-    //TODO Change this to File type
-    public ProxyBaseHandler(final String proxyConfigurationFilePath) throws IOException{
-        this(DefaultVariables.getDefaultSupplierFunctions(),
-                DefaultFunctions.getDefaultFunctions(),
-                DefaultBiFunctions.getDefaultBiFunctions(),
+    public ProxyBaseHandler(final File proxyConfigurationFilePath) throws IOException{
+        this(Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
                 DEFAULT_OBJECT_MAPPER,
-                proxyConfigurationFilePath);
+                proxyConfigurationFilePath, new Unirest());
     }
 
     /*
     Add your own custom functions
      */
-    protected ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
+    public ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
                                final Map<String, Function<Object, Object>> functions,
                                final Map<String, BiFunction<Object, Object, Object>> biFunctions,
-                               final String proxyConfigurationFilePath) throws IOException {
-        this(suppliers, functions, biFunctions, DEFAULT_OBJECT_MAPPER, proxyConfigurationFilePath);
+                               final File proxyConfigurationFilePath) throws IOException {
+        this(suppliers,
+                functions,
+                biFunctions,
+                DEFAULT_OBJECT_MAPPER,
+                proxyConfigurationFilePath,
+                new Unirest());
     }
 
     /*
     Add your own customer functions and your jackson object mapper. Only use if you know what youre doing!
      */
-    protected ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
+    public ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
                                final Map<String, Function<Object, Object>> functions,
                                final Map<String, BiFunction<Object, Object, Object>> biFunctions,
                                final ObjectMapper objectMapper,
-                               final String proxyConfigurationFilePath) throws IOException {
+                               final File proxyConfigurationFile,
+                               final Unirest unirest) throws IOException {
+        //Load built in functions
+        suppliers.putAll(DefaultVariables.getDefaultSupplierFunctions());
+        functions.putAll(DefaultFunctions.getDefaultFunctions());
+        biFunctions.putAll(DefaultBiFunctions.getDefaultBiFunctions());
 
         this.expressionParser = new ExpressionParser(suppliers, functions, biFunctions);
         this.objectMapper = objectMapper;
 
         final List<ProxyConfiguration> allProxyConfigurations =
-                this.objectMapper.readValue(new File(proxyConfigurationFilePath), new TypeReference<List<ProxyConfiguration>>(){});
+                this.objectMapper.readValue(proxyConfigurationFile, new TypeReference<List<ProxyConfiguration>>(){});
         this.proxyConfiguration = allProxyConfigurations.stream()
                 .collect(Collectors.toMap(proxyConifg ->
                                 new MethodPathTuple(proxyConifg.inputMethod, proxyConifg.inputPathPattern), Function.identity()));
 
         this.responseTransformer = new ResponseTransformer(objectMapper, expressionParser);
         this.requestTransformer = new RequestTransformer(objectMapper, expressionParser);
+        this.unirest = unirest;
     }
 
     public ProxyResponse handleRequest(final ProxyRequest request) throws IOException {
@@ -189,6 +178,7 @@ public class ProxyBaseHandler{
     }
 
     //TODO Put these methods in another ProxyService class
+    @SuppressWarnings("AccessStaticViaInstance")
     private void doRequest(final ProxyConfiguration salientProxyConfiguration) throws UnirestException, JsonProcessingException {
         final HttpMethod methodToCall = salientProxyConfiguration.destinationMethod;
         final String pathToCall = (String)expressionParser.parseAndBuildFunction(salientProxyConfiguration.destinationPath).apply(null);
@@ -196,26 +186,25 @@ public class ProxyBaseHandler{
         final HttpResponse<String> response;
         switch(methodToCall){
             case GET:
-                //TODO Wrap Unirest static methods for testing
-                response = doRequestWithoutBody(Unirest.get(pathToCall), salientProxyConfiguration);
+                response = doRequestWithoutBody(unirest.get(pathToCall), salientProxyConfiguration);
                 break;
             case POST:
-                response = doRequestWithBody(Unirest.post(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.post(pathToCall), salientProxyConfiguration);
                 break;
             case DELETE:
-                response = doRequestWithBody(Unirest.delete(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.delete(pathToCall), salientProxyConfiguration);
                 break;
             case PUT:
-                response = doRequestWithBody(Unirest.put(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.put(pathToCall), salientProxyConfiguration);
                 break;
             case PATCH:
-                response = doRequestWithBody(Unirest.patch(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.patch(pathToCall), salientProxyConfiguration);
                 break;
             case OPTIONS:
-                response = doRequestWithBody(Unirest.options(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.options(pathToCall), salientProxyConfiguration);
                 break;
             case HEAD:
-                response = doRequestWithoutBody(Unirest.head(pathToCall), salientProxyConfiguration);
+                response = doRequestWithoutBody(unirest.head(pathToCall), salientProxyConfiguration);
                 break;
             default:
                 throw new RuntimeException("This is impossible");
