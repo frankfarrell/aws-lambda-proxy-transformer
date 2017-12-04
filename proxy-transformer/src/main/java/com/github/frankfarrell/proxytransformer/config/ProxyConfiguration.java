@@ -3,6 +3,7 @@ package com.github.frankfarrell.proxytransformer.config;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,6 +39,17 @@ public class ProxyConfiguration {
 
     //Body returned to client
     public final Optional<Map<String, Object>> responseBody;
+
+    public ProxyConfiguration(final HttpMethod inputMethod,
+                              final String inputPathPattern,
+                              final HttpMethod destinationMethod,
+                              final String destinationPath){
+        this(inputMethod,
+                inputPathPattern,
+                destinationMethod,
+                destinationPath,
+                null, null, null,null, null, null, null, null );
+    }
 
     @JsonCreator
     public ProxyConfiguration(@JsonProperty("inputMethod") final HttpMethod inputMethod,
