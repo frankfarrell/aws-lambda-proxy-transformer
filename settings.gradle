@@ -1,2 +1,3 @@
 include "proxy-transformer"
-include "example"
+include "examples"
+include "examples:aws-lambda"

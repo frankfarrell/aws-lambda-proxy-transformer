@@ -40,10 +40,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -56,9 +53,20 @@ import static java.util.stream.Collectors.joining;
 /*
 Extend this class in your lambda
  */
-public class ProxyBaseHandler implements RequestStreamHandler {
+public class ProxyBaseHandler{
 
     private static final Logger log = LoggerFactory.getLogger(ProxyBaseHandler.class);
+
+    private static final ObjectMapper DEFAULT_OBJECT_MAPPER =
+            new ObjectMapper()
+                    .registerModules(
+                            new JavaTimeModule()
+                                    .addDeserializer(LocalDate.class,
+                                            new LocalDateDeserializer(DateTimeFormatter.BASIC_ISO_DATE)),
+                            new Jdk8Module())
+                    .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                    .setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
 
     protected final ObjectMapper objectMapper;
     private final Map<MethodPathTuple, ProxyConfiguration> proxyConfiguration;
@@ -67,90 +75,73 @@ public class ProxyBaseHandler implements RequestStreamHandler {
 
     private final ResponseTransformer responseTransformer;
     private final RequestTransformer requestTransformer;
-    /*
-    Default configuration, using built in functions and default config file.
-     */
-    protected ProxyBaseHandler(final ObjectMapper objectMapper) throws IOException {
-        this(DefaultVariables.getDefaultSupplierFunctions(),
-                DefaultFunctions.getDefaultFunctions(),
-                DefaultBiFunctions.getDefaultBiFunctions(),
-                objectMapper,
-                "src/main/resources/default_config.json");
-    }
+    private final Unirest unirest;
 
-    protected ProxyBaseHandler() throws IOException {
-        this(DefaultVariables.getDefaultSupplierFunctions(),
-                DefaultFunctions.getDefaultFunctions(),
-                DefaultBiFunctions.getDefaultBiFunctions(),
-                getDefaultObjectMapper(),
-                "src/main/resources/default_config.json");
+    public static ObjectMapper getDefaultObjectMapper(){
+        return DEFAULT_OBJECT_MAPPER;
     }
 
     /*
     Probably the configuration you want to use to start with: default functions and you can specify the configuration file
      */
-    protected ProxyBaseHandler(final String proxyConfigurationFilePath) throws IOException{
-        this(DefaultVariables.getDefaultSupplierFunctions(),
-                DefaultFunctions.getDefaultFunctions(),
-                DefaultBiFunctions.getDefaultBiFunctions(),
-                getDefaultObjectMapper(),
-                proxyConfigurationFilePath);
+    public ProxyBaseHandler(final File proxyConfigurationFilePath) throws IOException{
+        this(Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                DEFAULT_OBJECT_MAPPER,
+                proxyConfigurationFilePath, new Unirest());
     }
 
     /*
     Add your own custom functions
      */
-    protected ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
+    public ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
                                final Map<String, Function<Object, Object>> functions,
                                final Map<String, BiFunction<Object, Object, Object>> biFunctions,
-                               final String proxyConfigurationFilePath) throws IOException {
-        this(suppliers, functions, biFunctions, getDefaultObjectMapper(), proxyConfigurationFilePath);
+                               final File proxyConfigurationFilePath) throws IOException {
+        this(suppliers,
+                functions,
+                biFunctions,
+                DEFAULT_OBJECT_MAPPER,
+                proxyConfigurationFilePath,
+                new Unirest());
     }
 
     /*
     Add your own customer functions and your jackson object mapper. Only use if you know what youre doing!
      */
-    protected ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
+    public ProxyBaseHandler(final Map<String, Supplier<Object>> suppliers,
                                final Map<String, Function<Object, Object>> functions,
                                final Map<String, BiFunction<Object, Object, Object>> biFunctions,
                                final ObjectMapper objectMapper,
-                               final String proxyConfigurationFilePath) throws IOException {
+                               final File proxyConfigurationFile,
+                               final Unirest unirest) throws IOException {
+        //Load built in functions
+        suppliers.putAll(DefaultVariables.getDefaultSupplierFunctions());
+        functions.putAll(DefaultFunctions.getDefaultFunctions());
+        biFunctions.putAll(DefaultBiFunctions.getDefaultBiFunctions());
 
         this.expressionParser = new ExpressionParser(suppliers, functions, biFunctions);
         this.objectMapper = objectMapper;
 
         final List<ProxyConfiguration> allProxyConfigurations =
-                this.objectMapper.readValue(new File(proxyConfigurationFilePath), new TypeReference<List<ProxyConfiguration>>(){});
+                this.objectMapper.readValue(proxyConfigurationFile, new TypeReference<List<ProxyConfiguration>>(){});
         this.proxyConfiguration = allProxyConfigurations.stream()
                 .collect(Collectors.toMap(proxyConifg ->
                                 new MethodPathTuple(proxyConifg.inputMethod, proxyConifg.inputPathPattern), Function.identity()));
 
         this.responseTransformer = new ResponseTransformer(objectMapper, expressionParser);
         this.requestTransformer = new RequestTransformer(objectMapper, expressionParser);
+        this.unirest = unirest;
     }
 
-    public static ObjectMapper getDefaultObjectMapper() {
-        return new ObjectMapper()
-                .registerModules(
-                        new JavaTimeModule()
-                                .addDeserializer(LocalDate.class,
-                                        new LocalDateDeserializer(DateTimeFormatter.BASIC_ISO_DATE)),
-                        new Jdk8Module())
-                .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                .setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
-    }
+    public ProxyResponse handleRequest(final ProxyRequest request) throws IOException {
 
-    @Override
-    public void handleRequest(final InputStream input,
-                              final OutputStream output,
-                              final Context context) throws IOException {
+        //TODO Remove this
+        final HttpMethod currentHttpMethod = request.currentHttpMethod;
+        final String currentPath =request.currentPath;
 
-        final AwsProxyRequest request = this.objectMapper.readValue(input, AwsProxyRequest.class);
-
-        final HttpMethod currentHttpMethod = HttpMethod.forValue(request.getHttpMethod());
-        final String currentPath =request.getPath();
-
+        //TODO In method, add tests
         final ProxyConfiguration salientProxyConfiguration = this.proxyConfiguration
                 .keySet()
                 .stream()
@@ -163,30 +154,31 @@ public class ProxyBaseHandler implements RequestStreamHandler {
         final Map<String, String> matchedGroups = getMatchedPathGroups(currentPath, salientProxyConfiguration.inputPathPattern);
 
         RequestPathContextHolder.setContext(new RequestPath(currentPath, matchedGroups));
-        RequestHeadersContextHolder.setContext(request.getHeaders());
-        if(request.getBody() != null){
-            RequestDocumentContextHolder.setContext(Configuration.defaultConfiguration().jsonProvider().parse(request.getBody()));
+        RequestHeadersContextHolder.setContext(request.headers);
+        if(request.body.isPresent()){
+            RequestDocumentContextHolder.setContext(Configuration.defaultConfiguration().jsonProvider().parse(request.body.get()));
         }
-        RequestMethodContextHolder.setContext(request.getHttpMethod());
-        RequestQueryParamsContextHolder.setContext(request.getQueryStringParameters());
+        else{
+            //?
+        }
+        RequestMethodContextHolder.setContext(request.currentHttpMethod.value);
+        RequestQueryParamsContextHolder.setContext(request.queryParams);
 
 
         try {
             doRequest(salientProxyConfiguration);
         } catch (UnirestException e) {
-            //TODO Improve this
+            //TODO Return a 503 error to client
             log.error("Unirest error", e);
         }
 
-        //At the end ->
-        final AwsProxyResponse resp = new AwsProxyResponse();
-        resp.setBody(responseTransformer.transformResponseBody(salientProxyConfiguration.responseBody));
-        resp.setHeaders(responseTransformer.transformResponseHeaders(salientProxyConfiguration.responseHeaders));
-        resp.setStatusCode(responseTransformer.transformResponseStatusCode(salientProxyConfiguration.responseStatusCode));
-        this.objectMapper.writeValue(output, resp);
-        output.close();
+        return new ProxyResponse(responseTransformer.transformResponseBody(salientProxyConfiguration.responseBody),
+                responseTransformer.transformResponseHeaders(salientProxyConfiguration.responseHeaders),
+                responseTransformer.transformResponseStatusCode(salientProxyConfiguration.responseStatusCode));
     }
 
+    //TODO Put these methods in another ProxyService class
+    @SuppressWarnings("AccessStaticViaInstance")
     private void doRequest(final ProxyConfiguration salientProxyConfiguration) throws UnirestException, JsonProcessingException {
         final HttpMethod methodToCall = salientProxyConfiguration.destinationMethod;
         final String pathToCall = (String)expressionParser.parseAndBuildFunction(salientProxyConfiguration.destinationPath).apply(null);
@@ -194,25 +186,25 @@ public class ProxyBaseHandler implements RequestStreamHandler {
         final HttpResponse<String> response;
         switch(methodToCall){
             case GET:
-                response = doRequestWithoutBody(Unirest.get(pathToCall), salientProxyConfiguration);
+                response = doRequestWithoutBody(unirest.get(pathToCall), salientProxyConfiguration);
                 break;
             case POST:
-                response = doRequestWithBody(Unirest.post(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.post(pathToCall), salientProxyConfiguration);
                 break;
             case DELETE:
-                response = doRequestWithBody(Unirest.delete(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.delete(pathToCall), salientProxyConfiguration);
                 break;
             case PUT:
-                response = doRequestWithBody(Unirest.put(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.put(pathToCall), salientProxyConfiguration);
                 break;
             case PATCH:
-                response = doRequestWithBody(Unirest.patch(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.patch(pathToCall), salientProxyConfiguration);
                 break;
             case OPTIONS:
-                response = doRequestWithBody(Unirest.options(pathToCall), salientProxyConfiguration);
+                response = doRequestWithBody(unirest.options(pathToCall), salientProxyConfiguration);
                 break;
             case HEAD:
-                response = doRequestWithoutBody(Unirest.head(pathToCall), salientProxyConfiguration);
+                response = doRequestWithoutBody(unirest.head(pathToCall), salientProxyConfiguration);
                 break;
             default:
                 throw new RuntimeException("This is impossible");
@@ -256,6 +248,7 @@ public class ProxyBaseHandler implements RequestStreamHandler {
     }
 
     //TODO Is there a nice way to do this?
+    //TODO Put this method as static in MethodPathTuple?
     protected Map<String, String> getMatchedPathGroups(final String currentPath, final String inputPathPattern) {
         final Matcher matcher = Pattern.compile(inputPathPattern).matcher(currentPath);
 

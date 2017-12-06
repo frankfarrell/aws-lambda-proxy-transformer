@@ -1,0 +1,89 @@
+import jp.classmethod.aws.gradle.lambda.AWSLambdaMigrateFunctionTask
+
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath("jp.classmethod.aws:gradle-aws-plugin:${rootProject.awsPluginVersion}")
+    }
+}
+
+apply plugin: "java"
+apply plugin: "jacoco"
+apply plugin: "jp.classmethod.aws"
+apply plugin: "jp.classmethod.aws.lambda"
+
+aws {
+    region = "${awsRegion}"
+}
+
+lambda {
+    region = "${awsRegion}"
+}
+
+jar {
+    baseName = "example-proxy"
+    archivesBaseName = "example-proxy"
+    manifest {
+        attributes("Implementation-Title": "Example proxy transformer endpoint")
+    }
+    // Include all dependent libraries in the archive "lib" directory (fat jar).
+    into("lib") {
+        from configurations.runtime
+    }
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+
+    //TODO Change this to use the project from maven central
+    compile project(":proxy-transformer")
+    compile("com.fasterxml.jackson.core:jackson-databind:${rootProject.jacksonVersion}")
+    compile("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.jacksonVersion}")
+    compile("com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${rootProject.jacksonVersion}")
+    compile("org.slf4j:slf4j-api:${rootProject.slf4jVersion}")
+    compile("org.slf4j:slf4j-log4j12:${rootProject.slf4jVersion}")
+    compile("log4j:log4j:${rootProject.log4jVersion}")
+
+    //AWS Libraries
+   compile("com.amazonaws:aws-lambda-java-core:${rootProject.awsLambdaCoreVersion}") {
+        exclude group: 'com.amazonaws'
+    }
+
+    compile("com.amazonaws:aws-lambda-java-log4j:${rootProject.awsLambdaLog4jVersion}") {
+        exclude group: 'com.amazonaws'
+    }
+
+    compile("com.mashape.unirest:unirest-java:${rootProject.unirestJavaVersion}")
+
+    // Aws nonsense
+    compile("commons-logging:commons-logging:1.1.3")
+    compile("org.apache.httpcomponents:httpclient:${rootProject.httpClientVersion}")
+    compile("joda-time:joda-time:${rootProject.jodaTimeVersion}")
+
+    testCompile("junit:junit:${rootProject.junitVersion}")
+    testCompile("org.mockito:mockito-core:${rootProject.mockitoVersion}")
+    testCompile("org.assertj:assertj-core:${rootProject.assertJVersion}")
+    //testCompile("com.jayway.jsonpath:json-path-assert:${rootProject.jsonPathAssertVersion}")
+}
+
+// Pushes the Lambda function to AWS
+// Requires AWS credentials for the credential provider chain.
+// See: http://docs.aws.amazon.com/AWSSdkDocsJava/latest/DeveloperGuide/credentials.html
+task deploy(type: AWSLambdaMigrateFunctionTask, dependsOn: build) {
+    functionName = "example-proxy"
+    functionDescription = "Posts to pastebin"
+    role = "arn:aws:iam::${awsAccountId}:role/proxy-role"
+    zipFile = jar.archivePath
+    handler = "com.github.frankfarrell.proxytransformer.example.MainHandler"
+    memorySize = 256
+    runtime = com.amazonaws.services.lambda.model.Runtime.Java8
+}
