@@ -4,13 +4,13 @@ import java.util.Optional;
 
 public class RequestDocumentContextHolder {
 
-    private static final ThreadLocal<Optional<Object>> contextHolder = new InheritableThreadLocal<>();
+    private static final ThreadLocal<Optional<String>> contextHolder = new InheritableThreadLocal<>();
 
-    public static void setContext(Object document) {
+    public static void setContext(String document) {
         contextHolder.set(Optional.ofNullable(document));
     }
 
-    public static Optional<Object> getContext() {
+    public static Optional<String> getContext() {
         return contextHolder.get();
     }
 

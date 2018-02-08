@@ -1,0 +1,18 @@
+[
+  {
+    "inputMethod" : "GET",
+    "inputPathPattern" : "dogs",
+    "destinationMethod" : "GET",
+    "destinationPath" : "https://dog.ceo/api/breeds/list/all"
+  },
+  {
+    "inputMethod" : "GET",
+    "inputPathPattern" : "dogs/(\\w+)",
+    "destinationMethod" : "GET",
+    "destinationPath" : "concat('https://dog.ceo/api/breed/', concat(requestPathGroup('1'), '/list'))",
+    "responseBody" : {
+      "type" : "requestPathGroup('1')",
+      "breeds" : "responseJsonPath('$.message')"
+    }
+  }
+]

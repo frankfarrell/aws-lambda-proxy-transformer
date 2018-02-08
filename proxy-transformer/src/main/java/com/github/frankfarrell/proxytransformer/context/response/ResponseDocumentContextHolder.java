@@ -2,13 +2,13 @@ package com.github.frankfarrell.proxytransformer.context.response;
 
 public class ResponseDocumentContextHolder {
 
-    private static final ThreadLocal<Object> contextHolder = new InheritableThreadLocal<>();
+    private static final ThreadLocal<String> contextHolder = new InheritableThreadLocal<>();
 
-    public static void setContext(Object document) {
+    public static void setContext(String document) {
         contextHolder.set(document);
     }
 
-    public static Object getContext() {
+    public static String getContext() {
         return contextHolder.get();
     }
 

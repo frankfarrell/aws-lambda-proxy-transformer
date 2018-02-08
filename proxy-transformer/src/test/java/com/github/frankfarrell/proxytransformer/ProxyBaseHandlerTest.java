@@ -28,8 +28,8 @@ public class ProxyBaseHandlerTest {
     ProxyBaseHandler proxyBaseHandlerUnderTest;
 
     @Mock
-
     Unirest mockUnirest;
+
     @Mock
     File mockConfigFile;
 

@@ -85,11 +85,12 @@ public class ProxyBaseHandler{
     Probably the configuration you want to use to start with: default functions and you can specify the configuration file
      */
     public ProxyBaseHandler(final File proxyConfigurationFilePath) throws IOException{
-        this(Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
+        this(new HashMap<>(),
+                new HashMap<>(),
+                new HashMap<>(),
                 DEFAULT_OBJECT_MAPPER,
-                proxyConfigurationFilePath, new Unirest());
+                proxyConfigurationFilePath,
+                new Unirest());
     }
 
     /*
@@ -137,33 +138,21 @@ public class ProxyBaseHandler{
 
     public ProxyResponse handleRequest(final ProxyRequest request) throws IOException {
 
-        //TODO Remove this
         final HttpMethod currentHttpMethod = request.currentHttpMethod;
         final String currentPath =request.currentPath;
 
-        //TODO In method, add tests
-        final ProxyConfiguration salientProxyConfiguration = this.proxyConfiguration
-                .keySet()
-                .stream()
-                .filter(x -> x.httpMethod.equals(currentHttpMethod) && currentPath.matches(x.pathPattern))
-                .map(proxyConfiguration::get)
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("No proxy configuration for path " + currentPath));
-
+        final ProxyConfiguration salientProxyConfiguration = getSalientProxyConfiguration(currentHttpMethod, currentPath);
 
         final Map<String, String> matchedGroups = getMatchedPathGroups(currentPath, salientProxyConfiguration.inputPathPattern);
 
         RequestPathContextHolder.setContext(new RequestPath(currentPath, matchedGroups));
         RequestHeadersContextHolder.setContext(request.headers);
-        if(request.body.isPresent()){
-            RequestDocumentContextHolder.setContext(Configuration.defaultConfiguration().jsonProvider().parse(request.body.get()));
-        }
-        else{
-            //?
-        }
+
+        //Assumption here is that its a String
+        request.body.ifPresent(RequestDocumentContextHolder::setContext);
+
         RequestMethodContextHolder.setContext(request.currentHttpMethod.value);
         RequestQueryParamsContextHolder.setContext(request.queryParams);
-
 
         try {
             doRequest(salientProxyConfiguration);
@@ -175,6 +164,16 @@ public class ProxyBaseHandler{
         return new ProxyResponse(responseTransformer.transformResponseBody(salientProxyConfiguration.responseBody),
                 responseTransformer.transformResponseHeaders(salientProxyConfiguration.responseHeaders),
                 responseTransformer.transformResponseStatusCode(salientProxyConfiguration.responseStatusCode));
+    }
+
+    private ProxyConfiguration getSalientProxyConfiguration(HttpMethod currentHttpMethod, String currentPath) {
+        return this.proxyConfiguration
+                .keySet()
+                .stream()
+                .filter(x -> x.httpMethod.equals(currentHttpMethod) && currentPath.matches(x.pathPattern))
+                .map(proxyConfiguration::get)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No proxy configuration for path " + currentPath));
     }
 
     //TODO Put these methods in another ProxyService class
