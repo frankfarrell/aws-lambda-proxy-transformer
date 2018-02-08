@@ -1,6 +1,7 @@
 package com.github.frankfarrell.proxytransformer.functions;
 
 import com.github.frankfarrell.proxytransformer.context.request.*;
+import com.github.frankfarrell.proxytransformer.context.response.ResponseDocumentContextHolder;
 import com.github.frankfarrell.proxytransformer.context.response.ResponseHeadersContextHolder;
 import com.jayway.jsonpath.JsonPath;
 
@@ -52,11 +53,18 @@ public class DefaultFunctions {
     Context functions
      */
     public static Function<Object,Object> requestJsonPath(){
-        return jsonPath -> JsonPath.read(RequestDocumentContextHolder.getContext(), (String)jsonPath);
+        return jsonPath -> {
+            if(RequestDocumentContextHolder.getContext().isPresent()){
+                return JsonPath.read(RequestDocumentContextHolder.getContext().get(), (String)jsonPath);
+            }
+            else{
+                return "";
+            }
+        };
     }
 
     public static Function<Object,Object> responseJsonPath(){
-        return jsonPath -> JsonPath.read(RequestDocumentContextHolder.getContext(), (String)jsonPath);
+        return jsonPath -> JsonPath.read(ResponseDocumentContextHolder.getContext(), (String)jsonPath);
     }
 
     public static Function<Object,Object> requestHeader(){
