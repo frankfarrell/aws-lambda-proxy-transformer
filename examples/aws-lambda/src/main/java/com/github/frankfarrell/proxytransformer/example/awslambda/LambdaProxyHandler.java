@@ -13,6 +13,7 @@ import com.github.frankfarrell.proxytransformer.config.HttpMethod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,7 +27,8 @@ public class LambdaProxyHandler implements RequestStreamHandler {
     private final ProxyBaseHandler proxyBaseHandler;
 
     public LambdaProxyHandler() throws IOException {
-        this(ProxyBaseHandler.getDefaultObjectMapper(), new ProxyBaseHandler("src/main/resources/config.json"));
+        this(ProxyBaseHandler.getDefaultObjectMapper(),
+                new ProxyBaseHandler(new File("src/main/resources/config.json")));
     }
 
     public LambdaProxyHandler(final ObjectMapper objectMapper,

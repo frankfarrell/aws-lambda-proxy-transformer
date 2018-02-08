@@ -1,0 +1,8 @@
+[
+  {
+    "inputMethod" : "GET",
+    "inputPathPattern" : "carbon",
+    "destinationMethod" : "GET",
+    "destinationPath" : "https://api.carbonintensity.org.uk/intensity/date"
+  }
+]
